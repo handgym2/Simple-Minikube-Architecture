@@ -1,0 +1,83 @@
+---
+# Deployment for the Django-Python application container
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kube-django
+  namespace: django-postgre  
+  labels:
+    app: django
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: django
+  template:
+    metadata:
+      labels:
+        app: django
+    spec:
+      containers:
+      - name: kube-django
+        image: jeff125/kube-django:1.0.4
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 8000
+        env:
+          - name: POSTGRES_SERVICE_HOST
+            value: 10.100.79.156 #Your postgres service ip
+          - name: POSTGRES_USER
+            valueFrom:
+              secretKeyRef:
+                name: kube-web-secret
+                key: POSTGRES_USER
+          - name: POSTGRES_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: kube-web-secret
+                key: POSTGRES_PASSWORD
+          - name: POSTGRES_DB
+            value: 'kube-database'
+          - name: DATABASE_URL
+            value: postgres://$(POSTGRES_USER):$(POSTGRES_PASSWORD)@postgresql:5432/$(POSTGRES_DB)
+          - name: DJANGO_SETTINGS_MODULE
+            value: 'kubesite.settings'
+          - name: SECRET_KEY
+            valueFrom:
+              secretKeyRef:
+                name: django-secret-key
+                key: SECRET_KEY
+        resources:
+            requests:
+              memory: "64Mi"
+              cpu: "250m"
+            limits:
+              memory: "128Mi"
+              cpu: "500m"
+        volumeMounts:
+            - mountPath: /var/lib/postgresql/data
+              name: postgresql-volume-mount
+      volumes:
+      - name: postgresql-volume-mount
+        persistentVolumeClaim:
+          claimName: postgres-pv-claim
+
+---
+# Service for the Django-Python application container
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: django-svc
+  namespace: django-postgre  
+  labels:
+    app: django
+spec:
+  ports:
+  - port: 8000
+    targetPort: 8000
+    protocol: TCP
+  type: NodePort
+  selector:
+    app: django

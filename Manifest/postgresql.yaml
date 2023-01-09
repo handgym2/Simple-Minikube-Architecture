@@ -1,0 +1,74 @@
+---
+# Deployment for the PostgreSQL container
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: postgresql
+  namespace: django-postgre  
+  labels:
+    app: postgres-db
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: postgres-db
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        app: postgres-db
+        tier: postgreSQL
+    spec:
+      containers:
+        - name: postgresql
+          image: postgres
+          ports:
+          - containerPort: 5432
+          env:
+          - name: POSTGRES_USER
+            valueFrom:
+              secretKeyRef:
+                name: kube-web-secret
+                key: POSTGRES_USER
+          - name: POSTGRES_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: kube-web-secret
+                key: POSTGRES_PASSWORD
+          - name: POSTGRES_DB
+            value: kube-database
+          volumeMounts:
+            - mountPath: /var/lib/postgresql/data
+              name: postgresql-volume-mount
+          resources:
+            requests:
+              memory: "64Mi"
+              cpu: "250m"
+            limits:
+              memory: "128Mi"
+              cpu: "500m"
+      volumes:
+      - name: postgresql-volume-mount
+        persistentVolumeClaim:
+          claimName: postgres-pv-claim
+---
+# Service for the PostgreSQL container
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgresql-svc
+  namespace: django-postgre  
+  labels:
+    app: postgres-db
+spec:
+  type: ClusterIP
+  ports:
+  - port: 5432
+    targetPort: 5432
+    protocol: TCP
+  selector:
+    app: postgres-db
+    tier: postgreSQL
